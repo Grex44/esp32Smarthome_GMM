@@ -385,7 +385,10 @@ def start_module():  #sense_movement_count = humanState
     # th4.start()
     '''
     loop_timestamp = time.time()
-
+    
+    v8 = 0     # Human presence sense1
+    v9 = 0    # Human presence sense2
+    v10 = 0    # Human presence sense3         
     v11 = 0
     while 1:
         if ser.in_waiting > 0:
