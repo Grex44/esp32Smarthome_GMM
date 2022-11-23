@@ -60,7 +60,7 @@ unsigned long timeStamp = 0;
 bool timerActive;
 // unsigned long timerLength;
 // float timerLength = 0.75;  //current is testing for 21s at 0.35
-float timerLength = 2.5;  //10 mins
+float timerLength = 1;  //10 mins
 unsigned long startTime;
 float duration = timerLength * 60 * 1000;
 // unsigned long currMillis;
@@ -82,6 +82,10 @@ bool checktimebool = true;
 4 = all off
 
 */
+
+//number count for human check;
+int m = 0;
+
 
 int stateMachine = 0;
 // int prevStateMachine = 0;
@@ -106,8 +110,8 @@ VL53L5CX_ResultsData measurementData2;
 */
 
 void setup() {
-  Wire.begin(4, 15);   // Wire communication begin
-  Serial.begin(9600);  //rasp pi is 9600.
+  Wire.begin(4, 15);     // Wire communication begin
+  Serial.begin(115200);  //rasp pi is 9600.
   I2CVLX.begin(I2C_SDA, I2C_SCL);
   // bme.begin(0x76, &I2CVLX);
 
@@ -327,6 +331,8 @@ void loop() {
   Serial.print(humanState);
   Serial.print(" ;");
   Serial.print(stateMachine);
+  Serial.print(" ;");
+  Serial.print(m);
   Serial.println(" ");
   // Serial.print(" ;");
   // Serial.println(timerActive);
@@ -375,6 +381,7 @@ void loop() {
     relay4State = HIGH;  //UV light to normal light    OFF
     relay5State = LOW;   //Occupancy                   ON  (RED)
     relay6State = HIGH;  //Occupancy                   OFF (GREEN)
+    m = 0;
 
     pcf8574.digitalWrite(P0, relay1State);
     pcf8574.digitalWrite(P1, relay2State);
@@ -422,15 +429,15 @@ void loop() {
     delay(10);
 
     //add the check of door status then only proceed with disinfection procedure
-    // if (doorState != 1) {
-    //   desinfection();
-    //   delay(1);
-    // } else {
-    //   relay4State = HIGH;  //UV LIGHTS OFF
-    // }
+    if (doorState != 1) {
+      desinfection();
+      delay(1);
+    } else {
+      relay4State = HIGH;  //UV LIGHTS OFF
+    }
 
-    desinfection();
-    delay(10);
+    // desinfection();
+    delay(450);  //maybe need to increase timing
 
     //After disinfection sequence triggered, maintain UV light relay to OFF
     // relay4State = HIGH;  //UV light to normal light   OFF
@@ -474,14 +481,33 @@ void loop() {
         break;
       }
 
-      if ((digitalRead(human1) == true) || (digitalRead(human3) == true)) { 
-      // if (digitalRead(human1) == true) {  //need to remove this and the detect human function
-                                                                             // if (digitalRead(human2) == true) {  //for testing purposes; using only 1 sensor
-        timerActive = false;                                                 //**might be an error somewhere here need to look into this temeractive thingy
-        break;
-      }
+      humanSense1 = digitalRead(human1);
+      humanSense2 = digitalRead(human2);
+      humanSense3 = digitalRead(human3);
 
-      // sensors_event_t temp_event, pressure_event, humidity_event;
+      // /*
+      // sensing human with buffer
+      if (humanSense1 == 1  || humanSense3 == 1){
+        m+=1;
+        if (m >= 125 && (humanSense1 == 1 || humanSense3 == 1)){
+          timerActive = false; 
+          humanState = HIGH;
+          break;
+
+        }else {
+          humanState = LOW;
+        }
+      } else{
+        m = 0;
+      }
+      // */
+
+      // if (humanSense1 || humanSense3) {
+      //   // if (digitalRead(human1) == true) {  //need to remove this and the detect human function
+      //   // if (digitalRead(human2) == true) {  //for testing purposes; using only 1 sensor
+      //   timerActive = false;  //**might be an error somewhere here need to look into this temeractive thingy
+      //   break;
+      // }
 
       bme_temp->getEvent(&temp_event);
       bme_pressure->getEvent(&pressure_event);
@@ -490,12 +516,10 @@ void loop() {
       //Print bme sensor reading
       // Serial.print(F("Temperature = "));
       Serial.print(temp_event.temperature);
-      // Serial.print("*C; ");
       Serial.print("; ");
 
       // Serial.print(F("Humidity = "));
       Serial.print(humidity_event.relative_humidity);
-      // Serial.print("%; ");
       Serial.print("; ");
 
       // Serial.print(val1);
@@ -526,6 +550,8 @@ void loop() {
       Serial.print(humanState);
       Serial.print(" ;");
       Serial.print(stateMachine);
+      Serial.print(" ;");
+      Serial.print(m);
       Serial.println(" ");
       // Serial.print(" ;");
       // Serial.println(timerActive);
@@ -534,15 +560,15 @@ void loop() {
 
       // if((humanSense1 == true) || (humanSense3 == true)){
       // if ((digitalRead(human1) == true) || (digitalRead(human2) == true)) {  //need to remove this and the detect human function
-      // if ((digitalRead(human1) == true) || (digitalRead(human3) == true)) { 
+      // if ((digitalRead(human1) == true) || (digitalRead(human3) == true)) {
       // // if (digitalRead(human1) == true) {  //need to remove this and the detect human function
       //                                                                        // if (digitalRead(human2) == true) {  //for testing purposes; using only 1 sensor
       //   timerActive = false;                                                 //**might be an error somewhere here need to look into this temeractive thingy
       //   break;
       // }
-      if (timerActive == false){
-        break;
-      }
+      // if (timerActive == false){
+      //   break;
+      // }
       delay(50);
     }
     // Serial.println("OUT of whileloop; ");
@@ -606,6 +632,7 @@ void loop() {
 
   //Test microwave with UV light
   checkHuman2(humanSense1, humanSense2, humanSense3);
+  // checkHuman3(humanSense1, humanSense2, humanSense3, 0);
 
   // set the LED, lights, fan or aircon , UV light:
   digitalWrite(32, ledState);
@@ -615,8 +642,8 @@ void checkHuman2(bool a, bool b, bool c) {
   // if (a == 1 || b == 1 || c == 1) {
   // if (a == true || b == true) {  //Current pod uses 2 sensors
   if (a == true || c == true) {  //Current pod uses 2 sensors
-//  if (a == true) {  //Testing with one sensor; for testing purposes
- // if (b == true) {  //Testing with one sensor; for testing purposes
+                                 //  if (a == true) {  //Testing with one sensor; for testing purposes
+                                 // if (b == true) {  //Testing with one sensor; for testing purposes
     stateMachine = 1;
     humanState = HIGH;
     relay1State = LOW;   //Ventilation Fan             ON
@@ -633,6 +660,32 @@ void checkHuman2(bool a, bool b, bool c) {
     }
     humanState = LOW;
   }
+}
+
+int checkHuman3(bool a, bool b, bool c, int y) {
+  int k = y;
+  if (a == true || c == true) {  //Current pod uses 2 sensors
+    k += 1;
+    if (k > 125 && (a == true || c == true)) {
+      stateMachine = 1;
+      humanState = HIGH;
+      relay1State = LOW;   //Ventilation Fan             ON
+      relay2State = LOW;   //Air con                     ON
+      relay3State = LOW;   //Surrouding lights           ON
+      relay4State = HIGH;  //UV light to normal light    OFF
+      relay5State = LOW;   //Occupancy                   ON  (RED)
+      relay6State = HIGH;  //Occupancy                   OFF (GREEN)
+    } else {
+      humanState = LOW;
+    }
+  } else {
+    k = 0;
+    if (stateMachine != 3) {
+      // if (stateMachine != 3 || stateMachine != 4) {      //bad idea don't know why it will loop to statemachine 2
+      stateMachine = 2;
+    }
+    humanState = LOW;
+  }return k;      //not sure how to return the m counter to the serial print
 }
 
 void desinfection() {
